@@ -1,0 +1,88 @@
+#! /usr/bin/env python
+import sys, os, shutil, string, re
+
+dir_delimeter = '_'
+
+class PercentTemplate(string.Template):
+    delimiter = "%"
+
+def make_dict(path):
+    dictionary = {}
+    for name in path.split('/'):
+        if (name.count(dir_delimeter)):
+            parts = name.split(dir_delimeter) 
+            dictionary[parts[0]] = parts[1]
+    return dictionary
+
+def template_substitute(old_line, dictionary):
+    template = PercentTemplate(old_line)
+    try: new_line = template.substitute(dictionary)
+    except KeyError as e: 
+        print "Missing key:", e.message
+        sys.exit();
+    return new_line
+
+def edit_file(file_path, pattern, new_line):
+
+    readlines = open(file_path,'r').readlines()
+    for index, line in enumerate(readlines):
+
+        if ( re.search(pattern, line) ):
+            print file_path
+            print "Old Line: ", line.rstrip("\n")
+            print "New Line: ", new_line.rstrip("\n")
+
+            if (not raw_input()): 
+                readlines[index] = new_line
+
+    open(file_path, 'w').writelines(readlines)
+
+#################### MAIN ###########################
+
+if len(sys.argv)>1: command = sys.argv[1] 
+else: command = "help"
+
+if (command == "mkdir"):
+
+    for dir in sys.argv[2:]:
+        try: os.makedirs(dir)
+        except: OSError
+
+elif (command == "copy" or command == "cp"):
+
+    for file in filter(os.path.isfile, sys.argv[2:]):
+        for dir in filter(os.path.isdir, sys.argv[2:]):
+            shutil.copy(file, dir)
+
+elif (command == "exec"):
+    
+    dir_list = map(os.path.abspath, sys.argv[2:-1])
+    command = sys.argv[-1]
+
+    for path in dir_list:
+        dictionary = make_dict(path);
+        executable = template_substitute(command, dictionary)
+        os.chdir(path)
+        os.system(executable)
+
+elif (command == "edit"):
+
+    file_list = sys.argv[2:-2]
+    pattern = sys.argv[-2]
+    substitute = sys.argv[-1]
+
+    for file_path in file_list:
+        if (os.path.isfile(file_path)==True):
+            dictionary = make_dict(file_path)
+            new_line = template_substitute(substitute, dictionary) + "\n"
+            edit_file(file_path, pattern, new_line)
+        else:
+            print "Cannot edit", file_path
+            break
+
+else:
+
+    print "\nqglob mkdir globbed/dir"
+    print "qglob copy  path/to/file globbed/directory"
+    print "qglob edit  globbed/file \"pattern\" \"substitute %{dirname}\""
+    print "qglob exec  globbed/dir  \"command %{dirname}\"\n"
